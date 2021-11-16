@@ -3,17 +3,17 @@ CC=gcc
 CFLAGS= -c -Wall
 
 output: main.o 
-	$(CC) -pthread main.o -o output
+	$(CC) -pthread main.o -o main
 
 main.o: main.c
 	$(CC) $(CFLAGS) main.c
 
 clean:	
-	rm *.o output
+	rm *.o main
 	clear
 
 run:
-	./output
+	./main
 
 
 
