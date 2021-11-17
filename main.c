@@ -22,6 +22,16 @@ int countLines(FILE *file)
 // Function to print requested line of File
 void printLine(int lineNum, FILE *file)
 {
+    char line[100];
+    int count = 0;
+
+    while (getline(line, sizeof(line), file) != NULL)
+    {
+        if (count == lineNum)
+        {
+            printf("%s\n", line);
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -57,6 +67,7 @@ int main(int argc, char *argv[])
     {
         if (fork() == 0)
         {
+            //Use pipe to return random line number from child to parent
             close(fd[0]);
             int returnNumber = rand() % numLines;
             if (write(fd[1], &returnNumber, sizeof(int)) == -1)
@@ -71,13 +82,16 @@ int main(int argc, char *argv[])
         }
         else
         {
+            //Use pipe to read random line number from child and print that line
             close(fd[1]);
             int returnLine;
             read(fd[0], &returnLine, sizeof(int));
             close(fd[0]);
             printLine(returnLine, fptr);
+            wait(NULL);
         }
     }
 
+    fclose(fptr);
     return 0;
 }
