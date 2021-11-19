@@ -30,6 +30,11 @@ void printLine(int lineNum, FILE *file)
         if (count == lineNum)
         {
             printf("%s\n", line);
+            break;
+        }
+        else
+        {
+            count++;
         }
     }
 }
@@ -67,7 +72,7 @@ int main(int argc, char *argv[])
     {
         if (fork() == 0)
         {
-            //Use pipe to return random line number from child to parent
+            // Use pipe to return random line number from child to parent
             close(fd[0]);
             int returnNumber = rand() % numLines;
             if (write(fd[1], &returnNumber, sizeof(int)) == -1)
@@ -82,7 +87,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            //Use pipe to read random line number from child and print that line
+            // Use pipe to read random line number from child and print that line
             close(fd[1]);
             int returnLine;
             read(fd[0], &returnLine, sizeof(int));
