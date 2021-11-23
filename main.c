@@ -1,11 +1,35 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <pthread.h>
+#include <semaphore.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/shm.h>
 #include <unistd.h>
 
 #define FSIZE 100
+#define numChildren 2
+#define numActions 10
+#define fname "sample.txt"
+
+// Shared memory struct containg buffer[numChildren][numActions]
+struct shared_memory
+{
+    char buffer[numChildren][numActions];
+    int child_index;
+    int action_index;
+};
+
+void writeToBuffer(int numLine, struct shared_memory *sharedMemory)
+{
+    sharedMemory->buffer[sharedMemory->child_index][sharedMemory->action_index++] = numLine;
+}
+
+int readFromBuffer(struct shared_memory *sharedMemory, int *childIndex, int *actionIndex)
+{
+    int i = *childIndex;
+    int j = *actionIndex;
+    return sharedMemory->buffer[i][j];
+}
 
 // Function to count how many lines in File
 int countLines(FILE *file)
@@ -15,21 +39,23 @@ int countLines(FILE *file)
     for (c = getc(file); c != EOF; c = getc(file))
         if (c == '\n') // Increment count if this character is newline
             lines = lines + 1;
-    fclose(file);
     return lines;
 }
 
 // Function to print requested line of File
-void printLine(int lineNum, FILE *file)
+void printLine(int lineNum, FILE *file, int childIndex, int actionIndex)
 {
-    char line[100];
+    char *line = NULL;
+    size_t bla;
     int count = 0;
+    size_t size = 100;
+    bla = getline(&line, &size, file);
 
-    while (getline(line, sizeof(line), file) != NULL)
+    while (bla != EOF)
     {
         if (count == lineNum)
         {
-            printf("%s\n", line);
+            printf("Child (%d) in action (%d): %s\n", childIndex, actionIndex, line);
             break;
         }
         else
@@ -41,62 +67,86 @@ void printLine(int lineNum, FILE *file)
 
 int main(int argc, char *argv[])
 {
-    int numChildren = 4;
-    int numActions = 10;
     int numLines = 0;
+    int pid[numChildren];
     FILE *fptr;
-    char fname = "K22_CW1_2021-2022.docx";
+
+    sem_t semaphore;
+    sem_init(&semaphore, 0, 1);
 
     // Open File and find how many lines
     fptr = fopen(fname, "r");
     if (fptr == NULL)
     {
-        printf("Error opening file\n");
+        perror("Error opening file\n");
+        exit(EXIT_FAILURE);
     }
     else
     {
         numLines = countLines(fptr);
     }
 
-    // Open pipe for communication between Parent Process and Children Processes
-    int fd[2];
-    if (pipe(fd) == -1)
+    // Initialize shared memory
+    struct shared_memory *sharedMemory;
+    int shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), 0600);
+    if (shm_id == -1)
     {
-        printf("Error opening the pipe\n");
-        return 1;
+        perror("Error with shmget");
+        exit(EXIT_FAILURE);
     }
+    sharedMemory = shmat(shm_id, NULL, 0);
+    sharedMemory->action_index = sharedMemory->child_index = 0;
 
     // Create children processes
-    srand(NULL);
     for (int i = 0; i < numChildren; i++)
     {
-        if (fork() == 0)
+        // int pidi = fork();
+        pid[i] = fork();
+        // Child proccess writes numActions times to buffer
+        if (pid[i] == -1)
         {
-            // Use pipe to return random line number from child to parent
-            close(fd[0]);
-            int returnNumber = rand() % numLines;
-            if (write(fd[1], &returnNumber, sizeof(int)) == -1)
+            perror("Error with fork");
+            exit(EXIT_FAILURE);
+        }
+        else if (pid[i] == 0)
+        {
+            for (int actions = 0; actions < numActions; actions++)
             {
-                printf("Error writing to pipe\n");
-                return 2;
+                sem_wait(&semaphore);
+                int returnNumber = rand() % numLines;
+                writeToBuffer(returnNumber, sharedMemory);
+                sem_post(&semaphore);
             }
-            else
-            {
-                close(fd[1]);
-            }
+            sharedMemory->child_index++;
         }
         else
         {
-            // Use pipe to read random line number from child and print that line
-            close(fd[1]);
-            int returnLine;
-            read(fd[0], &returnLine, sizeof(int));
-            close(fd[0]);
-            printLine(returnLine, fptr);
-            wait(NULL);
+            // Parent process reads lineNumber from buffer one at a time and prints line
+            int childIndex, actionIndex;
+            for (childIndex = 0; childIndex < numChildren; childIndex++)
+            {
+                for (actionIndex = 0; actionIndex < numActions; actionIndex++)
+                {
+                    sem_wait(&semaphore);
+                    int returnLine = readFromBuffer(sharedMemory, &childIndex, &actionIndex);
+                    printLine(returnLine, fptr, childIndex, actionIndex);
+                    sem_post(&semaphore);
+                }
+            }
         }
+        usleep(5000);
     }
 
+    for (int i = 0; i < numChildren; i++)
+        wait(NULL);
+
+    // for (int i = 0; i < numChildren; i++)
+    //     for (int j = 0; j < numActions; j++)
+    //         printf("%d\n", sharedMemory->buffer[i][j]);
+
+    sem_destroy(&semaphore);
+    shmdt(sharedMemory);
+    shmctl(shm_id, IPC_RMID, 0);
     fclose(fptr);
     return 0;
 }
