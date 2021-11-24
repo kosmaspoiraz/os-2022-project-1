@@ -12,7 +12,8 @@ clean:
 	rm *.o main
 	clear
 
-run:
+run:main.o 
+	$(CC) -pthread main.o -o main
 	./main
 
 
