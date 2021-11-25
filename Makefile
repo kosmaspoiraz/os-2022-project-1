@@ -13,6 +13,7 @@ clean:
 	clear
 
 run:main.o 
+	clear
 	$(CC) -pthread main.o -o main
 	./main
 

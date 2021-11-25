@@ -7,6 +7,8 @@
 #include <sys/shm.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <errno.h>
+#include <fcntl.h>
 
 #define FSIZE 100
 #define numChildren 2
@@ -67,7 +69,7 @@ void printLine(int *lineNum, int *numLines, int *childIndex, int *actionIndex, s
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            printf("Child (%d) in action (%d) requested Line Number %d: %s\n", child, action, sharedMemory->buffer[child][action], line);
+            printf("Child (%d) in action (%d) requested Line Number %d: \n%s\n", child, action, sharedMemory->buffer[child][action], line);
             fclose(file);
             return;
         }
@@ -85,8 +87,10 @@ int main(int argc, char *argv[])
     int pid[numChildren];
     FILE *fptr;
 
-    sem_t semaphore;
-    sem_init(&semaphore, 0, 1);
+    // Initialize semaphores
+    sem_t *semaphoreRead, *semaphoreWrite;
+    semaphoreRead = sem_open("Read", O_CREAT, 0660, 1);
+    semaphoreWrite = sem_open("Write", O_CREAT, 0660, 1);
 
     // Open File and find how many lines
     fptr = fopen(fname, "r");
@@ -113,9 +117,9 @@ int main(int argc, char *argv[])
     sharedMemory->action_index = sharedMemory->child_index = sharedMemory->size = 0;
 
     // Create children processes
-    for (int i = 0; i < numChildren; i++)
+    int i;
+    for (i = 0; i < numChildren; i++)
     {
-        // int pidi = fork();
         pid[i] = fork();
         // Child proccess writes numActions times to buffer
         if (pid[i] == -1)
@@ -125,39 +129,41 @@ int main(int argc, char *argv[])
         }
         else if (pid[i] == 0)
         {
+            srand(getpid());
             for (int actions = 0; actions < numActions; actions++)
             {
-                if (sharedMemory->size <= MAXSIZE)
+                if (sharedMemory->action_index >= numActions)
                 {
-                    sem_wait(&semaphore);
-                    int returnNumber = rand() % numLines + 1;
-                    printf("Child (%d) in Action (%d) writing to memory...\n", sharedMemory->child_index, sharedMemory->action_index);
-                    printf("Child (%d) in Action (%d) wrote to memory: %d\n", sharedMemory->child_index, sharedMemory->action_index, returnNumber);
-                    writeToBuffer(returnNumber, sharedMemory);
-                    sem_post(&semaphore);
-                    sleep(5);
+                    sem_wait(semaphoreWrite);
+                    sharedMemory->action_index = 0;
+                    sharedMemory->child_index++;
+                    if (sharedMemory->child_index >= numChildren)
+                    {
+                        break;
+                    }
                 }
-                else
-                {
-                    printf("No more space in sharedMemory\n");
-                    break;
-                }
+                int returnNumber = rand() % numLines + 1;
+                printf("Child (%d) in Action (%d) writing to memory...\n", sharedMemory->child_index, sharedMemory->action_index);
+                printf("Child (%d) in Action (%d) wrote to memory: %d\n", sharedMemory->child_index, sharedMemory->action_index, returnNumber);
+                writeToBuffer(returnNumber, sharedMemory);
+                sem_post(semaphoreWrite);
+                sleep(1);
             }
-            sharedMemory->child_index++;
         }
         else
         {
-            // Parent process reads lineNumber from buffer one at a time and prints line
+            // Parent process reads lineNumber from buffer one at a time and prints lineσ
             int childIndex, actionIndex;
             for (childIndex = 0; childIndex < numChildren; childIndex++)
             {
+
                 for (actionIndex = 0; actionIndex < numActions; actionIndex++)
                 {
-                    sem_wait(&semaphore);
+                    sem_wait(semaphoreRead);
                     printf("Server trying to read from memory...\n");
                     if (sharedMemory->size <= 0)
                     {
-                        printf("Nothing yet to read. Waiting...\n");
+                        printf("Nothing yet to read. Waiting...1\n");
                     }
                     else
                     {
@@ -165,27 +171,38 @@ int main(int argc, char *argv[])
                         *returnLine = readFromBuffer(sharedMemory, &childIndex, &actionIndex);
                         if (*returnLine == 0)
                         {
-                            printf("Nothing yet to read. Waiting...\n");
+                            printf("Nothing yet to read. Waiting...2\n");
                             free(returnLine);
+                            sem_post(semaphoreRead);
                             continue;
                         }
                         printf("Server read from memory: %d...\n", *(int *)returnLine);
                         printLine(returnLine, &numLines, &childIndex, &actionIndex, sharedMemory);
                         free(returnLine);
+                        sleep(1);
                     }
-                    sem_post(&semaphore);
-                    sleep(1);
+                    sem_post(semaphoreRead);
                 }
             }
         }
     }
 
+    // Wait for everyone to finish
     for (int i = 0; i < numChildren; i++)
+    {
         wait(NULL);
+    }
 
-    sem_destroy(&semaphore);
+    // Free and unlink semaphores
+    sem_close(semaphoreRead);
+    sem_close(semaphoreWrite);
+    sem_unlink("Read");
+    sem_unlink("Write");
+
+    // Detach and free memory
     shmdt(sharedMemory);
     shmctl(shm_id, IPC_RMID, NULL);
-    fclose(fptr);
+    printf("Bla\n");
+
     return 0;
 }
