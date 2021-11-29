@@ -12,32 +12,16 @@
 
 #define FSIZE 100
 #define numChildren 2
-#define numActions 4
+#define numActions 2
 #define fname "sample.txt"
 #define MAXSIZE numChildren *numActions
 
 // Shared memory struct containg buffer[numChildren][numActions]
 struct shared_memory
 {
-    char buffer[numChildren][numActions];
-    int child_index;
-    int action_index;
-    int size;
+    char *buffer;
+    int lineNum;
 };
-
-void writeToBuffer(int numLine, struct shared_memory *sharedMemory)
-{
-    sharedMemory->buffer[sharedMemory->child_index][sharedMemory->action_index] = numLine;
-    sharedMemory->size++;
-    sharedMemory->action_index++;
-}
-
-int readFromBuffer(struct shared_memory *sharedMemory, int *childIndex, int *actionIndex)
-{
-    int i = *childIndex;
-    int j = *actionIndex;
-    return sharedMemory->buffer[i][j];
-}
 
 // Function to count how many lines in File
 int countLines(FILE *file)
@@ -51,7 +35,7 @@ int countLines(FILE *file)
 }
 
 // Function to print requested line number
-void printLine(int *lineNum, int *numLines, int *childIndex, int *actionIndex, struct shared_memory *sharedMemory)
+void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
 {
     FILE *file = fopen(fname, "r");
     if (file == NULL)
@@ -60,8 +44,6 @@ void printLine(int *lineNum, int *numLines, int *childIndex, int *actionIndex, s
         exit(EXIT_FAILURE);
     }
     int count = 1;
-    int child = *childIndex;
-    int action = *actionIndex;
     char line[FSIZE * (*numLines)];
 
     while (fgets(line, sizeof(line), file) != NULL)
@@ -69,7 +51,9 @@ void printLine(int *lineNum, int *numLines, int *childIndex, int *actionIndex, s
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            printf("Child (%d) in action (%d) requested Line Number %d: \n%s\n", child, action, sharedMemory->buffer[child][action], line);
+            sharedMemory->buffer = 0;
+            printf("Child (%d) requested Line Number %d\n", getpid(), sharedMemory->lineNum);
+            sharedMemory->buffer = line;
             fclose(file);
             return;
         }
@@ -114,7 +98,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     sharedMemory = shmat(shm_id, NULL, 0);
-    sharedMemory->action_index = sharedMemory->child_index = sharedMemory->size = 0;
+    sharedMemory->lineNum = 0;
 
     // Create children processes
     int i;
@@ -129,69 +113,18 @@ int main(int argc, char *argv[])
         }
         else if (pid[i] == 0)
         {
-            srand(getpid());
-            for (int actions = 0; actions < numActions; actions++)
-            {
-                if (sharedMemory->action_index >= numActions)
-                {
-                    sem_wait(semaphoreWrite);
-                    sharedMemory->action_index = 0;
-                    sharedMemory->child_index++;
-                    if (sharedMemory->child_index >= numChildren)
-                    {
-                        break;
-                    }
-                }
-                int returnNumber = rand() % numLines + 1;
-                printf("Child (%d) in Action (%d) writing to memory...\n", sharedMemory->child_index, sharedMemory->action_index);
-                printf("Child (%d) in Action (%d) wrote to memory: %d\n", sharedMemory->child_index, sharedMemory->action_index, returnNumber);
-                writeToBuffer(returnNumber, sharedMemory);
-                sem_post(semaphoreWrite);
-                sleep(1);
-            }
+            execv("./client", 0);
         }
         else
         {
-            // Parent process reads lineNumber from buffer one at a time and prints lineσ
-            int childIndex, actionIndex;
-            for (childIndex = 0; childIndex < numChildren; childIndex++)
-            {
-
-                for (actionIndex = 0; actionIndex < numActions; actionIndex++)
-                {
-                    sem_wait(semaphoreRead);
-                    printf("Server trying to read from memory...\n");
-                    if (sharedMemory->size <= 0)
-                    {
-                        printf("Nothing yet to read. Waiting...1\n");
-                    }
-                    else
-                    {
-                        int *returnLine = malloc(sizeof(int));
-                        *returnLine = readFromBuffer(sharedMemory, &childIndex, &actionIndex);
-                        if (*returnLine == 0)
-                        {
-                            printf("Nothing yet to read. Waiting...2\n");
-                            free(returnLine);
-                            sem_post(semaphoreRead);
-                            continue;
-                        }
-                        printf("Server read from memory: %d...\n", *(int *)returnLine);
-                        printLine(returnLine, &numLines, &childIndex, &actionIndex, sharedMemory);
-                        free(returnLine);
-                        sleep(1);
-                    }
-                    sem_post(semaphoreRead);
-                }
-            }
+            // Parent process waits requests one at a time and responds
+            execv("./server", 0);
         }
     }
 
     // Wait for everyone to finish
-    for (int i = 0; i < numChildren; i++)
-    {
-        wait(NULL);
-    }
+    while (wait(NULL) > 0)
+        ;
 
     // Free and unlink semaphores
     sem_close(semaphoreRead);
