@@ -42,7 +42,8 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
         if (count == *lineNum)
         {
             sharedMemory->foundLine = 0;
-            // printf("Child (%d) requested Line Number %d\n", getpid(), sharedMemory->requestedLine);
+            printf("Server returned line number %d \n", sharedMemory->requestedLine);
+            // sharedMemory->foundLine = malloc(sizeof(FSIZE * (*numLines)));
             sharedMemory->foundLine = line;
             fclose(file);
             return;
@@ -60,14 +61,8 @@ int main(int argc, char **argv)
 
     // Initialize shared memory
     struct shared_memory *sharedMemory;
-    // int shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), 0666);
-    // if (shm_id == -1)
-    // {
-    //     perror("Error with shmget");
-    //     exit(EXIT_FAILURE);
-    // }
     int shm_id;
-    sscanf(argv[1], " % d", &shm_id);
+    sscanf(argv[1], "%d", &shm_id);
     sharedMemory = shmat(shm_id, NULL, 0);
 
     // Initialize semaphores
@@ -83,6 +78,7 @@ int main(int argc, char **argv)
         sem_wait(semServer);
         printf("Locked semServer\n");
 
+        printf("Server read from memory: %d\n", sharedMemory->requestedLine);
         findLine(&sharedMemory->requestedLine, &sharedMemory->numberOfLines, sharedMemory);
 
         // Unlock semClientRead
@@ -94,6 +90,7 @@ int main(int argc, char **argv)
         printf("UnLocked semClientWrite\n");
     }
 
+    free(sharedMemory->foundLine);
     shmdt(sharedMemory);
     return 0;
 }

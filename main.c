@@ -73,6 +73,10 @@ int main(int argc, char *argv[])
     sharedMemory->requestedLine = 0;
     sharedMemory->numberOfLines = numLines;
 
+    // static char *args[] = {"./client", shm_id, NULL};
+    char str[100];
+    sprintf(str, "%d", shm_id);
+
     // Create children processes
     int i;
     for (i = 0; i < numChildren; i++)
@@ -86,14 +90,11 @@ int main(int argc, char *argv[])
         }
         else if (pid[i] == 0)
         {
-            execl("./client", "./client", NULL);
-
-            // static char *args[] = {"./client", shm_id, NULL};
-            // execv(args[0], args);
+            execlp("./client", "./client", str, NULL);
         }
     }
     // Parent process waits requests one at a time and responds
-    execl("./server", "./server", NULL);
+    execlp("./server", "./server", str, NULL);
 
     // Wait for everyone to finish
     while (wait(NULL) > 0)

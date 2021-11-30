@@ -30,14 +30,8 @@ int main(int argc, char **argv)
 
     // Initialize shared memory
     struct shared_memory *sharedMemory;
-    // int shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), 0666);
-    // if (shm_id == -1)
-    // {
-    //     perror("Error with shmget");
-    //     exit(EXIT_FAILURE);
-    // }
     int shm_id;
-    sscanf(argv[1], " % d", &shm_id);
+    sscanf(argv[1], "%d", &shm_id);
     sharedMemory = shmat(shm_id, NULL, 0);
 
     // Initialize semaphores
@@ -69,7 +63,7 @@ int main(int argc, char **argv)
         printf("Locked semClientRead\n");
 
         // Print line
-        printf("Child (%d) in Action (%d) requested line number (%d): /n%s\n", getpid(), actions, sharedMemory->requestedLine, sharedMemory->foundLine);
+        printf("Child (%d) in Action (%d) requested line number (%d): \n<- %s ->\n", getpid(), actions, sharedMemory->requestedLine, sharedMemory->foundLine);
 
         // Unlock
         // sem_post(semClientRead);
