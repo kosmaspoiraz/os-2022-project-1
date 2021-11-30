@@ -19,8 +19,9 @@
 // Shared memory struct containg buffer[numChildren][numActions]
 struct shared_memory
 {
-    char *buffer;
-    int lineNum;
+    char *foundLine;
+    int numberOfLines;
+    int requestedLine;
 };
 
 // Function to print requested line number
@@ -40,9 +41,9 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            sharedMemory->buffer = 0;
-            printf("Child (%d) requested Line Number %d\n", getpid(), sharedMemory->lineNum);
-            sharedMemory->buffer = line;
+            sharedMemory->foundLine = 0;
+            // printf("Child (%d) requested Line Number %d\n", getpid(), sharedMemory->requestedLine);
+            sharedMemory->foundLine = line;
             fclose(file);
             return;
         }
@@ -53,9 +54,46 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
     }
 }
 
-int main()
+int main(int argc, char **argv)
 {
     printf("Server is running...\n");
 
-        return 0;
+    // Initialize shared memory
+    struct shared_memory *sharedMemory;
+    // int shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), 0666);
+    // if (shm_id == -1)
+    // {
+    //     perror("Error with shmget");
+    //     exit(EXIT_FAILURE);
+    // }
+    int shm_id;
+    sscanf(argv[1], " % d", &shm_id);
+    sharedMemory = shmat(shm_id, NULL, 0);
+
+    // Initialize semaphores
+    sem_t *semClientRead, *semClientWrite, *semServer;
+    semServer = sem_open("Server", O_RDWR);
+    semClientRead = sem_open("ClientRead", O_RDWR);
+    semClientWrite = sem_open("ClientWrite", O_RDWR);
+
+    int i = 0;
+    while (i < numChildren * numActions)
+    {
+        // Lock semServer
+        sem_wait(semServer);
+        printf("Locked semServer\n");
+
+        findLine(&sharedMemory->requestedLine, &sharedMemory->numberOfLines, sharedMemory);
+
+        // Unlock semClientRead
+        sem_post(semClientRead);
+        printf("UnLocked semClientRead\n");
+
+        // Unlock semClientWrite
+        sem_post(semClientWrite);
+        printf("UnLocked semClientWrite\n");
+    }
+
+    shmdt(sharedMemory);
+    return 0;
 }

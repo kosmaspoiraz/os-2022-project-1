@@ -11,7 +11,7 @@
 #include <fcntl.h>
 
 #define FSIZE 100
-#define numChildren 2
+#define numChildren 4
 #define numActions 2
 #define fname "sample.txt"
 #define MAXSIZE numChildren *numActions
@@ -19,8 +19,9 @@
 // Shared memory struct containg buffer[numChildren][numActions]
 struct shared_memory
 {
-    char *buffer;
-    int lineNum;
+    char *foundLine;
+    int numberOfLines;
+    int requestedLine;
 };
 
 // Function to count how many lines in File
@@ -34,36 +35,6 @@ int countLines(FILE *file)
     return lines;
 }
 
-// Function to print requested line number
-void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
-{
-    FILE *file = fopen(fname, "r");
-    if (file == NULL)
-    {
-        perror("Error opening file\n");
-        exit(EXIT_FAILURE);
-    }
-    int count = 1;
-    char line[FSIZE * (*numLines)];
-
-    while (fgets(line, sizeof(line), file) != NULL)
-    {
-        line[strlen(line) - 1] = '\0';
-        if (count == *lineNum)
-        {
-            sharedMemory->buffer = 0;
-            printf("Child (%d) requested Line Number %d\n", getpid(), sharedMemory->lineNum);
-            sharedMemory->buffer = line;
-            fclose(file);
-            return;
-        }
-        else
-        {
-            count++;
-        }
-    }
-}
-
 // Main program
 int main(int argc, char *argv[])
 {
@@ -72,9 +43,10 @@ int main(int argc, char *argv[])
     FILE *fptr;
 
     // Initialize semaphores
-    sem_t *semaphoreRead, *semaphoreWrite;
-    semaphoreRead = sem_open("Read", O_CREAT, 0660, 1);
-    semaphoreWrite = sem_open("Write", O_CREAT, 0660, 1);
+    sem_t *semClientRead, *semClientWrite, *semServer;
+    semServer = sem_open("Server", O_CREAT, 0660, 0);           // LOCKED
+    semClientRead = sem_open("ClientRead", O_CREAT, 0660, 0);   // LOCKED
+    semClientWrite = sem_open("ClientWrite", O_CREAT, 0660, 1); // UNLOCKED
 
     // Open File and find how many lines
     fptr = fopen(fname, "r");
@@ -91,14 +63,15 @@ int main(int argc, char *argv[])
 
     // Initialize shared memory
     struct shared_memory *sharedMemory;
-    int shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), IPC_CREAT | 0666);
+    int const shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), IPC_CREAT | 0666);
     if (shm_id == -1)
     {
         perror("Error with shmget");
         exit(EXIT_FAILURE);
     }
     sharedMemory = shmat(shm_id, NULL, 0);
-    sharedMemory->lineNum = 0;
+    sharedMemory->requestedLine = 0;
+    sharedMemory->numberOfLines = numLines;
 
     // Create children processes
     int i;
@@ -113,24 +86,26 @@ int main(int argc, char *argv[])
         }
         else if (pid[i] == 0)
         {
-            execv("./client", 0);
-        }
-        else
-        {
-            // Parent process waits requests one at a time and responds
-            execv("./server", 0);
+            execl("./client", "./client", NULL);
+
+            // static char *args[] = {"./client", shm_id, NULL};
+            // execv(args[0], args);
         }
     }
+    // Parent process waits requests one at a time and responds
+    execl("./server", "./server", NULL);
 
     // Wait for everyone to finish
     while (wait(NULL) > 0)
         ;
 
     // Free and unlink semaphores
-    sem_close(semaphoreRead);
-    sem_close(semaphoreWrite);
-    sem_unlink("Read");
-    sem_unlink("Write");
+    sem_close(semClientRead);
+    sem_close(semClientWrite);
+    sem_close(semServer);
+    sem_unlink("ClientRead");
+    sem_unlink("ClientWrite");
+    sem_unlink("Server");
 
     // Detach and free memory
     shmdt(sharedMemory);
