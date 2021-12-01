@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
     sharedMemory = shmat(shm_id, NULL, 0);
     sharedMemory->requestedLine = 0;
     sharedMemory->numberOfLines = numLines;
+    sharedMemory->foundLine = malloc(sizeof(FSIZE * numLines));
 
     // static char *args[] = {"./client", shm_id, NULL};
     char str[100];
@@ -109,6 +110,7 @@ int main(int argc, char *argv[])
     sem_unlink("Server");
 
     // Detach and free memory
+    // free(sharedMemory->foundLine);
     shmdt(sharedMemory);
     shmctl(shm_id, IPC_RMID, NULL);
     printf("Bla\n");

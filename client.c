@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     {
         // Lock semClientWrite
         sem_wait(semClientWrite);
-        printf("Locked semClientWrite\n");
+        printf("Locked semClientWrite by (%d)\n", getpid());
 
         // Request line from server
         printf("Child (%d) in Action (%d) writing to memory...\n", getpid(), actions);
@@ -64,12 +64,6 @@ int main(int argc, char **argv)
 
         // Print line
         printf("Child (%d) in Action (%d) requested line number (%d): \n<- %s ->\n", getpid(), actions, sharedMemory->requestedLine, sharedMemory->foundLine);
-
-        // Unlock
-        // sem_post(semClientRead);
-        // printf("UnLocked semClientRead\n");
-        // sem_post(semClientWrite);
-        // printf("UnLocked semClientWrite\n");
     }
 
     shmdt(sharedMemory);

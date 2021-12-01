@@ -41,9 +41,7 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            sharedMemory->foundLine = 0;
             printf("Server returned line number %d \n", sharedMemory->requestedLine);
-            // sharedMemory->foundLine = malloc(sizeof(FSIZE * (*numLines)));
             sharedMemory->foundLine = line;
             fclose(file);
             return;
@@ -66,7 +64,7 @@ int main(int argc, char **argv)
     sharedMemory = shmat(shm_id, NULL, 0);
 
     // Initialize semaphores
-    sem_t *semClientRead, *semClientWrite, *semServer;
+    sem_t *semClientRead, *semServer, *semClientWrite;
     semServer = sem_open("Server", O_RDWR);
     semClientRead = sem_open("ClientRead", O_RDWR);
     semClientWrite = sem_open("ClientWrite", O_RDWR);
@@ -81,7 +79,9 @@ int main(int argc, char **argv)
         printf("Server read from memory: %d\n", sharedMemory->requestedLine);
         findLine(&sharedMemory->requestedLine, &sharedMemory->numberOfLines, sharedMemory);
 
-        // Unlock semClientRead
+        printf("%s\n", sharedMemory->foundLine);
+
+        // UnLock semClientRead
         sem_post(semClientRead);
         printf("UnLocked semClientRead\n");
 
