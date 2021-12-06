@@ -27,5 +27,8 @@ run:main.o  client.o server.o
 	$(CC) -pthread server.o -o server
 	./main
 
+gdb:main.o
+	gdb ./main
+
 
 

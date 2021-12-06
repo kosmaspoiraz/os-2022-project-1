@@ -10,8 +10,8 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#define FSIZE 100
-#define numChildren 4
+#define FSIZE 1024
+#define numChildren 2
 #define numActions 2
 #define fname "sample.txt"
 #define MAXSIZE numChildren *numActions
@@ -20,8 +20,8 @@
 struct shared_memory
 {
     char *foundLine;
-    int numberOfLines;
-    int requestedLine;
+    int *numberOfLines;
+    int *requestedLine;
 };
 
 // Function to count how many lines in File
@@ -38,15 +38,30 @@ int countLines(FILE *file)
 // Main program
 int main(int argc, char *argv[])
 {
-    int numLines = 0;
     int pid[numChildren];
     FILE *fptr;
 
+    // Initialize shared memory
+    struct shared_memory *sharedMemory;
+    void *bla = (void *)0;
+    int const shm_id = shmget((key_t)1996, sizeof(struct shared_memory), IPC_CREAT | 0666);
+    if (shm_id == -1)
+    {
+        perror("Error with shmget");
+        exit(EXIT_FAILURE);
+    }
+    bla = shmat(shm_id, (void *)0, 0);
+    sharedMemory = (struct shared_memory *)bla;
+
     // Initialize semaphores
     sem_t *semClientRead, *semClientWrite, *semServer;
-    semServer = sem_open("Server", O_CREAT, 0660, 0);           // LOCKED
-    semClientRead = sem_open("ClientRead", O_CREAT, 0660, 0);   // LOCKED
-    semClientWrite = sem_open("ClientWrite", O_CREAT, 0660, 1); // UNLOCKED
+    semServer = sem_open("/sem_server", O_CREAT, 0660, 0);           // LOCKED
+    semClientRead = sem_open("/sem_ClientRead", O_CREAT, 0660, 0);   // LOCKED
+    semClientWrite = sem_open("/sem_ClientWrite", O_CREAT, 0660, 1); // UNLOCKED
+
+    sem_init(semServer, 1, 0);      // LOCKED
+    sem_init(semClientRead, 1, 0);  // LOCKED
+    sem_init(semClientWrite, 1, 1); // UNLOCKED
 
     // Open File and find how many lines
     fptr = fopen(fname, "r");
@@ -57,24 +72,16 @@ int main(int argc, char *argv[])
     }
     else
     {
-        numLines = countLines(fptr);
+        int lines = countLines(fptr);
+        sharedMemory->numberOfLines = malloc(sizeof(int));
+        sharedMemory->numberOfLines = &lines;
     }
     fclose(fptr);
 
-    // Initialize shared memory
-    struct shared_memory *sharedMemory;
-    int const shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), IPC_CREAT | 0666);
-    if (shm_id == -1)
-    {
-        perror("Error with shmget");
-        exit(EXIT_FAILURE);
-    }
-    sharedMemory = shmat(shm_id, NULL, 0);
-    sharedMemory->requestedLine = 0;
-    sharedMemory->numberOfLines = numLines;
-    sharedMemory->foundLine = malloc(sizeof(FSIZE * numLines));
+    sharedMemory->foundLine = malloc(sizeof(FSIZE * (*(int *)sharedMemory->numberOfLines)));
+    sharedMemory->requestedLine = malloc(sizeof(int));
+    *(int *)sharedMemory->requestedLine = 0;
 
-    // static char *args[] = {"./client", shm_id, NULL};
     char str[100];
     sprintf(str, "%d", shm_id);
 
@@ -82,6 +89,7 @@ int main(int argc, char *argv[])
     int i;
     for (i = 0; i < numChildren; i++)
     {
+        fflush(stdout);
         pid[i] = fork();
         // Child proccess writes numActions times to buffer
         if (pid[i] == -1)
@@ -91,11 +99,20 @@ int main(int argc, char *argv[])
         }
         else if (pid[i] == 0)
         {
-            execlp("./client", "./client", str, NULL);
+            break;
         }
     }
-    // Parent process waits requests one at a time and responds
-    execlp("./server", "./server", str, NULL);
+
+    if (pid[i] == 0)
+    {
+        fflush(stdout);
+        execlp("./client", "./client", str, NULL);
+    }
+    else
+    {
+        // Parent process waits requests one at a time and responds
+        execlp("./server", "./server", str, NULL);
+    }
 
     // Wait for everyone to finish
     while (wait(NULL) > 0)
@@ -110,7 +127,7 @@ int main(int argc, char *argv[])
     sem_unlink("Server");
 
     // Detach and free memory
-    // free(sharedMemory->foundLine);
+    free(sharedMemory->foundLine);
     shmdt(sharedMemory);
     shmctl(shm_id, IPC_RMID, NULL);
     printf("Bla\n");

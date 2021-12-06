@@ -10,7 +10,7 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#define FSIZE 100
+#define FSIZE 1024
 #define numChildren 2
 #define numActions 2
 #define fname "sample.txt"
@@ -20,8 +20,8 @@
 struct shared_memory
 {
     char *foundLine;
-    int numberOfLines;
-    int requestedLine;
+    int *numberOfLines;
+    int *requestedLine;
 };
 
 // Function to print requested line number
@@ -41,7 +41,7 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            printf("Server returned line number %d \n", sharedMemory->requestedLine);
+            printf("Server returned line number %d \n", *(int *)sharedMemory->requestedLine);
             sharedMemory->foundLine = line;
             fclose(file);
             return;
@@ -59,38 +59,39 @@ int main(int argc, char **argv)
 
     // Initialize shared memory
     struct shared_memory *sharedMemory;
+    void *bla = (void *)0;
     int shm_id;
     sscanf(argv[1], "%d", &shm_id);
-    sharedMemory = shmat(shm_id, NULL, 0);
+    bla = shmat(shm_id, (void *)0, 0);
+    sharedMemory = (struct shared_memory *)bla;
 
     // Initialize semaphores
-    sem_t *semClientRead, *semServer, *semClientWrite;
-    semServer = sem_open("Server", O_RDWR);
-    semClientRead = sem_open("ClientRead", O_RDWR);
-    semClientWrite = sem_open("ClientWrite", O_RDWR);
+    sem_t *semClientRead, *semServer;
+    semServer = sem_open("/sem_server", O_RDWR);
+    semClientRead = sem_open("/sem_ClientRead", O_RDWR);
+    // semClientWrite = sem_open("/sem_ClientWrite", O_RDWR);
 
     int i = 0;
     while (i < numChildren * numActions)
     {
-        // Lock semServer
+        printf("Server -- Wait on semServer\n");
         sem_wait(semServer);
-        printf("Locked semServer\n");
 
-        printf("Server read from memory: %d\n", sharedMemory->requestedLine);
-        findLine(&sharedMemory->requestedLine, &sharedMemory->numberOfLines, sharedMemory);
+        printf("Server read from memory: %d\n", *(int *)sharedMemory->requestedLine);
+        findLine(sharedMemory->requestedLine, sharedMemory->numberOfLines, sharedMemory);
 
         printf("%s\n", sharedMemory->foundLine);
 
-        // UnLock semClientRead
         sem_post(semClientRead);
-        printf("UnLocked semClientRead\n");
+        printf("Server -- Post on semClientRead\n");
 
-        // Unlock semClientWrite
-        sem_post(semClientWrite);
-        printf("UnLocked semClientWrite\n");
+        sem_wait(semServer);
+        printf("Server -- Wait on semServer\n");
+
+        i++;
     }
 
-    free(sharedMemory->foundLine);
+    // free(sharedMemory->foundLine);
     shmdt(sharedMemory);
     return 0;
 }
