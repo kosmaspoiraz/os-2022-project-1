@@ -1,6 +1,6 @@
 CC=gcc
 
-CFLAGS= -c -Wall
+CFLAGS= -c -Wall -Werror -lpthread
 
 output: main.o client.o server.o
 	$(CC) -pthread main.o -o main

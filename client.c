@@ -11,12 +11,12 @@
 #include <fcntl.h>
 
 #define FSIZE 100
-#define numChildren 2
+#define numClientren 2
 #define numActions 2
 #define fname "sample.txt"
-#define MAXSIZE numChildren *numActions
+#define MAXSIZE numClientren *numActions
 
-// Shared memory struct containg buffer[numChildren][numActions]
+// Shared memory struct containg buffer[numClientren][numActions]
 struct shared_memory
 {
     char *foundLine;
@@ -26,45 +26,54 @@ struct shared_memory
 
 int main(int argc, char **argv)
 {
-    printf("Client is running...\n");
+    printf("Client (%d) is running...\n", getpid());
 
     // Initialize shared memory
+    void *bla = (void *)0;
     struct shared_memory *sharedMemory;
     int shm_id;
     sscanf(argv[1], "%d", &shm_id);
-    sharedMemory = shmat(shm_id, NULL, 0);
+    bla = shmat(shm_id, NULL, 0);
+    sharedMemory = (struct shared_memory *)bla;
 
     // Initialize semaphores
-    sem_t *semClientRead, *semClientWrite, *semServer;
-    semServer = sem_open("Server", O_RDWR);
-    semClientRead = sem_open("ClientRead", O_RDWR);
-    semClientWrite = sem_open("ClientWrite", O_RDWR);
+    sem_t *semServer, *semClientWrite;
+    semServer = sem_open("/sem_server", O_RDWR);
+    sem_t *semClientRead;
+    semClientRead = sem_open("/sem_client_read", O_RDWR);
+    semClientWrite = sem_open("/sem_client_write", O_RDWR);
 
     srand(getpid());
     for (int actions = 0; actions < numActions; actions++)
     {
-        // Lock semClientWrite
+        // Entering Critical Section 1
         sem_wait(semClientWrite);
-        printf("Locked semClientWrite by (%d)\n", getpid());
+        printf("(%d) entered Critical Section 1\n", getpid());
+        fflush(stdout);
 
         // Request line from server
-        printf("Child (%d) in Action (%d) writing to memory...\n", getpid(), actions);
+        printf("%p\n", sharedMemory->foundLine);
+        printf("%d\n", sharedMemory->requestedLine);
+        printf("%d\n", sharedMemory->numberOfLines);
+
         sharedMemory->requestedLine = rand() % sharedMemory->numberOfLines + 1;
-        printf("Child (%d) in Action (%d) wrote to memory: %d\n", getpid(), actions, sharedMemory->requestedLine);
+        printf("Client (%d) in Action (%d) writing to memory: %d...\n", getpid(), actions, sharedMemory->requestedLine);
+        fflush(stdout);
 
-        // Send Server signal to respond
-        // Unlock semServer
+        // Exiting Critical Section 1
         sem_post(semServer);
-        printf("UnLocked semServer\n");
 
-        // Receive signal from Server that he responded
-        // Lock semClientRead
+        // Entering Critical Section 2
         sem_wait(semClientRead);
-        printf("Locked semClientRead\n");
+        printf("%s", sharedMemory->foundLine);
 
-        // Print line
-        printf("Child (%d) in Action (%d) requested line number (%d): \n<- %s ->\n", getpid(), actions, sharedMemory->requestedLine, sharedMemory->foundLine);
+        // Exiting Critical Section 2
+        sem_post(semClientWrite);
     }
+
+    sem_close(semClientWrite);
+    sem_close(semServer);
+    sem_close(semClientRead);
 
     shmdt(sharedMemory);
     return 0;

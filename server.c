@@ -34,7 +34,7 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
         exit(EXIT_FAILURE);
     }
     int count = 1;
-    char line[FSIZE * (*numLines)];
+    char line[1024];
 
     while (fgets(line, sizeof(line), file) != NULL)
     {
@@ -58,39 +58,40 @@ int main(int argc, char **argv)
     printf("Server is running...\n");
 
     // Initialize shared memory
+    void *bla = (void *)0;
     struct shared_memory *sharedMemory;
     int shm_id;
     sscanf(argv[1], "%d", &shm_id);
-    sharedMemory = shmat(shm_id, NULL, 0);
+    bla = shmat(shm_id, NULL, 0);
+    sharedMemory = (struct shared_memory *)bla;
 
     // Initialize semaphores
-    sem_t *semClientRead, *semServer, *semClientWrite;
-    semServer = sem_open("Server", O_RDWR);
-    semClientRead = sem_open("ClientRead", O_RDWR);
-    semClientWrite = sem_open("ClientWrite", O_RDWR);
+    sem_t *semServer, *semClientWrite;
+    semServer = sem_open("/sem_server", O_RDWR);
+    sem_t *semClientRead;
+    semClientRead = sem_open("/sem_client_read", O_RDWR);
+    semClientWrite = sem_open("/sem_client_write", O_RDWR);
 
     int i = 0;
     while (i < numChildren * numActions)
     {
-        // Lock semServer
+        // Entering Critical Section
         sem_wait(semServer);
-        printf("Locked semServer\n");
+        printf("Server entered Critical Section \n");
 
         printf("Server read from memory: %d\n", sharedMemory->requestedLine);
         findLine(&sharedMemory->requestedLine, &sharedMemory->numberOfLines, sharedMemory);
+        i++;
 
-        printf("%s\n", sharedMemory->foundLine);
-
-        // UnLock semClientRead
+        // Exiting Critical Section
         sem_post(semClientRead);
-        printf("UnLocked semClientRead\n");
-
-        // Unlock semClientWrite
-        sem_post(semClientWrite);
-        printf("UnLocked semClientWrite\n");
     }
 
-    free(sharedMemory->foundLine);
+    sem_close(semClientWrite);
+    sem_close(semServer);
+    sem_close(semClientRead);
+
+    // free(sharedMemory->foundLine);
     shmdt(sharedMemory);
     return 0;
 }
