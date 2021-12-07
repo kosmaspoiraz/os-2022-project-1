@@ -1,53 +1,4 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <semaphore.h>
-#include <string.h>
-#include <sys/ipc.h>
-#include <sys/wait.h>
-#include <sys/shm.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <errno.h>
-#include <fcntl.h>
-
-#define FSIZE 1024
-
-// Shared memory struct
-struct shared_memory
-{
-    char foundLine[FSIZE];
-    int requestedLine;
-};
-
-// Function to print requested line number
-void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory, char *fname)
-{
-    FILE *file = fopen(fname, "r");
-    if (file == NULL)
-    {
-        perror("Error opening file\n");
-        exit(EXIT_FAILURE);
-    }
-    int count = 1;
-    char line[FSIZE];
-
-    while (fgets(line, sizeof(line), file) != NULL)
-    {
-        line[strlen(line) - 1] = '\0';
-        if (count == *lineNum)
-        {
-            printf("Server returned line number %d \n", sharedMemory->requestedLine);
-            // sharedMemory->foundLine = line;
-            strcpy(sharedMemory->foundLine, line);
-            fclose(file);
-            return;
-        }
-        else
-        {
-            count++;
-        }
-    }
-}
+#include "common.h"
 
 int main(int argc, char **argv)
 {
@@ -61,25 +12,50 @@ int main(int argc, char **argv)
     sscanf(argv[4], "%d", &numberOfLines);
     fname = argv[5];
 
-    printf("Server: %s, %d , %d\n", fname, numChildren, numActions);
-
-    // Initialize shared memory
+    // Attach shared memory
     void *bla = (void *)0;
     struct shared_memory *sharedMemory;
     bla = shmat(shm_id, NULL, 0);
+    if (bla == NULL)
+    {
+        perror("Error with shmat");
+        exit(EXIT_FAILURE);
+    }
     sharedMemory = (struct shared_memory *)bla;
 
-    // Initialize semaphores
-    sem_t *semServer;
+    // Open semaphores
+    sem_t *semServer, *semClientRead;
+
     semServer = sem_open("/sem_server", O_RDWR);
-    sem_t *semClientRead;
+    if (semServer == SEM_FAILED)
+    {
+        perror("Failed to open semServer");
+        exit(EXIT_FAILURE);
+    }
+
     semClientRead = sem_open("/sem_client_read", O_RDWR);
+    if (semClientRead == SEM_FAILED)
+    {
+        perror("Failed to open semClientRead");
+        exit(EXIT_FAILURE);
+    }
+
+    semClientWrite = sem_open("/sem_client_write", O_RDWR);
+    if (semClientWrite == SEM_FAILED)
+    {
+        perror("Failed to open semClientWrite");
+        exit(EXIT_FAILURE);
+    }
 
     int i = 0;
     while (i < numChildren * numActions)
     {
         // Entering Critical Section
-        sem_wait(semServer);
+        if (sem_wait(semServer) < 0)
+        {
+            perror("Failed to wait semServer");
+            exit(EXIT_FAILURE);
+        }
 
         printf("Server read from memory: %d\n", sharedMemory->requestedLine);
         findLine(&sharedMemory->requestedLine, &numberOfLines, sharedMemory, fname);
@@ -87,12 +63,71 @@ int main(int argc, char **argv)
 
         // Exiting Critical Section
         fflush(stdout);
-        sem_post(semClientRead);
+
+        if (sem_post(semClientRead) < 0)
+        {
+            perror("Failed to post semClientRead");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    sem_close(semServer);
-    sem_close(semClientRead);
+    // Wait for everyone to finish
+    while (wait(NULL) > 0)
+        ;
 
-    shmdt(sharedMemory);
+    // Close semaphores
+    if (sem_close(semClientWrite) < 0)
+    {
+        perror("Failed to close semClientWrite");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sem_close(semClienRead) < 0)
+    {
+        perror("Failed to close semClientRead");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sem_close(semServer) < 0)
+    {
+        perror("Failed to close semServer");
+        exit(EXIT_FAILURE);
+    }
+
+    // Unlink semaphores
+    if (sem_unlink("/sem_client_read") < 0)
+    {
+        perror("Failed to unlink semClientRead");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sem_unlink("/sem_client_write") < 0)
+    {
+        perror("Failed to unlink semClientWrite");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sem_unlink("/sem_server") < 0)
+    {
+        perror("Failed to unlink semServer");
+        exit(EXIT_FAILURE);
+    }
+
+    // Detach sharedMemory
+    if (shmdt(sharedMemory) == -1)
+    {
+        perror("Failed with shmdt");
+        exit(EXIT_FAILURE);
+    }
+
+    // Remove sharedMemory
+    if (shmctl(shm_id, IPC_RMID, NULL) == -1)
+    {
+        perror("Failed with shmctl");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("\n<--- END OF PROGRAM --->\n\n");
+
     return 0;
 }

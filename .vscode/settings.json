@@ -2,7 +2,8 @@
     "files.associations": {
         "semaphore.h": "c",
         "types.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "common.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

@@ -1,38 +1,10 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <semaphore.h>
-#include <string.h>
-#include <sys/ipc.h>
-#include <sys/wait.h>
-#include <sys/shm.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <errno.h>
-#include <fcntl.h>
-
-#define FSIZE 1024
-
-// Shared memory struct
-struct shared_memory
-{
-    char foundLine[FSIZE];
-    int requestedLine;
-};
-
-// Function to count how many lines in File
-int countLines(FILE *file)
-{
-    char c;
-    int lines = 0;
-    for (c = getc(file); c != EOF; c = getc(file))
-        if (c == '\n') // Increment count if this character is newline
-            lines = lines + 1;
-    return lines;
-}
+#include "common.h"
 
 // Main program
 int main(int argvc, char *argvv[])
 {
+    printf("\n\n <--- START OF PROGRAM --->\n\n");
+
     int numLines = 0;
     int numChildren, numActions;
     const char *fname;
@@ -46,27 +18,61 @@ int main(int argvc, char *argvv[])
     // Initialize shared memory
     void *bla = (void *)0;
     struct shared_memory *sharedMemory;
-    int const shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), IPC_CREAT | 0666);
+    int const shm_id = shmget(MEM_KEY, sizeof(struct shared_memory), SHM_FLAGS);
     if (shm_id == -1)
     {
         perror("Error with shmget");
         exit(EXIT_FAILURE);
     }
     bla = shmat(shm_id, NULL, 0);
+    if (bla == NULL)
+    {
+        perror("Error with shmat");
+        exit(EXIT_FAILURE);
+    }
     sharedMemory = (struct shared_memory *)bla;
     sharedMemory->requestedLine = 0;
-    // sharedMemory->foundLine = malloc(sizeof(FSIZE));
+
+    // Create semaphores
+    sem_t *semClientWrite, *semServer, *semClientRead;
+
+    semServer = sem_open("/sem_server", SEM_PERMS, 0);
+    if (semServer == SEM_FAILED)
+    {
+        perror("Failed to open semServer");
+        exit(EXIT_FAILURE);
+    }
+
+    semClientRead = sem_open("/sem_client_read", SEM_PERMS, 0);
+    if (semClientRead == SEM_FAILED)
+    {
+        perror("Failed to open semClientRead");
+        exit(EXIT_FAILURE);
+    }
+
+    semClientWrite = sem_open("/sem_client_write", SEM_PERMS, 1);
+    if (semClientWrite == SEM_FAILED)
+    {
+        perror("Failed to open semClientWrite");
+        exit(EXIT_FAILURE);
+    }
 
     // Initialize semaphores
-    sem_t *semClientWrite, *semServer;
-    semServer = sem_open("/sem_server", O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    sem_t *semClientRead;
-    semClientRead = sem_open("/sem_client_read", O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    semClientWrite = sem_open("/sem_client_write", O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 1);
-
-    sem_init(semClientWrite, 1, 1); // Unlocked
-    sem_init(semServer, 1, 0);      // Locked
-    sem_init(semClientRead, 1, 0);  // Locked
+    if (sem_init(semClientWrite, 1, 1) != 0) // Unlocked
+    {
+        perror("Failed to initialize semClientWrite");
+        exit(EXIT_FAILURE);
+    }
+    if (sem_init(semServer, 1, 0) != 0) // Locked
+    {
+        perror("Failed to initialize semServer");
+        exit(EXIT_FAILURE);
+    }
+    if (sem_init(semClientRead, 1, 0)) // Locked
+    {
+        perror("Failed to initialize semClientRead");
+        exit(EXIT_FAILURE);
+    }
 
     // Open File and find how many lines
     fptr = fopen(fname, "r");
@@ -88,9 +94,24 @@ int main(int argvc, char *argvv[])
     sprintf(argv4, "%d", numLines);    // argvv[4]
     sprintf(argv5, "%s", fname);       // argvv[5]
 
-    sem_close(semClientWrite);
-    sem_close(semServer);
-    sem_close(semClientRead);
+    // Close sems as we won't be using them here
+    if (sem_close(semClientWrite) < 0)
+    {
+        perror("Failed to close semClientWrite");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sem_close(semClienRead) < 0)
+    {
+        perror("Failed to close semClientRead");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sem_close(semServer) < 0)
+    {
+        perror("Failed to close semServer");
+        exit(EXIT_FAILURE);
+    }
 
     // Create children processes
     int i;
@@ -115,24 +136,9 @@ int main(int argvc, char *argvv[])
     }
     else
     {
-        // Parent process waits requests one at a time and responds
+        // Parent process
         execlp("./server", "./server", argv1, argv2, argv3, argv4, argv5, NULL);
     }
-
-    // Wait for everyone to finish
-    while (wait(NULL) > 0)
-        ;
-
-    // Free and unlink semaphores
-
-    sem_unlink("/sem_client_read");
-    sem_unlink("/sem_client_write");
-    sem_unlink("/sem_server");
-
-    // Detach and free memory
-    shmdt(sharedMemory);
-    shmctl(shm_id, IPC_RMID, NULL);
-    printf("Bla\n");
 
     return 0;
 }
