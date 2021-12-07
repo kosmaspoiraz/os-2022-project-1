@@ -11,21 +11,16 @@
 #include <fcntl.h>
 
 #define FSIZE 1024
-#define numChildren 2
-#define numActions 2
-#define fname "sample.txt"
-#define MAXSIZE numChildren *numActions
 
-// Shared memory struct containg buffer[numChildren][numActions]
+// Shared memory struct
 struct shared_memory
 {
-    char *foundLine;
-    int *numberOfLines;
-    int *requestedLine;
+    char foundLine[FSIZE];
+    int requestedLine;
 };
 
 // Function to print requested line number
-void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
+void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory, char *fname)
 {
     FILE *file = fopen(fname, "r");
     if (file == NULL)
@@ -34,15 +29,16 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory)
         exit(EXIT_FAILURE);
     }
     int count = 1;
-    char line[FSIZE * (*numLines)];
+    char line[FSIZE];
 
     while (fgets(line, sizeof(line), file) != NULL)
     {
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            printf("Server returned line number %d \n", *(int *)sharedMemory->requestedLine);
-            sharedMemory->foundLine = line;
+            printf("Server returned line number %d \n", sharedMemory->requestedLine);
+            // sharedMemory->foundLine = line;
+            strcpy(sharedMemory->foundLine, line);
             fclose(file);
             return;
         }
@@ -57,41 +53,46 @@ int main(int argc, char **argv)
 {
     printf("Server is running...\n");
 
-    // Initialize shared memory
-    struct shared_memory *sharedMemory;
-    void *bla = (void *)0;
-    int shm_id;
+    int shm_id, numChildren, numActions, numberOfLines;
+    char *fname;
     sscanf(argv[1], "%d", &shm_id);
-    bla = shmat(shm_id, (void *)0, 0);
+    sscanf(argv[2], "%d", &numChildren);
+    sscanf(argv[3], "%d", &numActions);
+    sscanf(argv[4], "%d", &numberOfLines);
+    fname = argv[5];
+
+    printf("Server: %s, %d , %d\n", fname, numChildren, numActions);
+
+    // Initialize shared memory
+    void *bla = (void *)0;
+    struct shared_memory *sharedMemory;
+    bla = shmat(shm_id, NULL, 0);
     sharedMemory = (struct shared_memory *)bla;
 
     // Initialize semaphores
-    sem_t *semClientRead, *semServer;
+    sem_t *semServer;
     semServer = sem_open("/sem_server", O_RDWR);
-    semClientRead = sem_open("/sem_ClientRead", O_RDWR);
-    // semClientWrite = sem_open("/sem_ClientWrite", O_RDWR);
+    sem_t *semClientRead;
+    semClientRead = sem_open("/sem_client_read", O_RDWR);
 
     int i = 0;
     while (i < numChildren * numActions)
     {
-        printf("Server -- Wait on semServer\n");
+        // Entering Critical Section
         sem_wait(semServer);
 
-        printf("Server read from memory: %d\n", *(int *)sharedMemory->requestedLine);
-        findLine(sharedMemory->requestedLine, sharedMemory->numberOfLines, sharedMemory);
-
-        printf("%s\n", sharedMemory->foundLine);
-
-        sem_post(semClientRead);
-        printf("Server -- Post on semClientRead\n");
-
-        sem_wait(semServer);
-        printf("Server -- Wait on semServer\n");
-
+        printf("Server read from memory: %d\n", sharedMemory->requestedLine);
+        findLine(&sharedMemory->requestedLine, &numberOfLines, sharedMemory, fname);
         i++;
+
+        // Exiting Critical Section
+        fflush(stdout);
+        sem_post(semClientRead);
     }
 
-    // free(sharedMemory->foundLine);
+    sem_close(semServer);
+    sem_close(semClientRead);
+
     shmdt(sharedMemory);
     return 0;
 }

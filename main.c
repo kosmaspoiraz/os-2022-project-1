@@ -11,17 +11,12 @@
 #include <fcntl.h>
 
 #define FSIZE 1024
-#define numChildren 2
-#define numActions 2
-#define fname "sample.txt"
-#define MAXSIZE numChildren *numActions
 
-// Shared memory struct containg buffer[numChildren][numActions]
+// Shared memory struct
 struct shared_memory
 {
-    char *foundLine;
-    int *numberOfLines;
-    int *requestedLine;
+    char foundLine[FSIZE];
+    int requestedLine;
 };
 
 // Function to count how many lines in File
@@ -36,32 +31,42 @@ int countLines(FILE *file)
 }
 
 // Main program
-int main(int argc, char *argv[])
+int main(int argvc, char *argvv[])
 {
+    int numLines = 0;
+    int numChildren, numActions;
+    const char *fname;
+    fname = argvv[1];
+    sscanf(argvv[2], "%d", &numChildren);
+    sscanf(argvv[3], "%d", &numActions);
+
     int pid[numChildren];
     FILE *fptr;
 
     // Initialize shared memory
-    struct shared_memory *sharedMemory;
     void *bla = (void *)0;
-    int const shm_id = shmget((key_t)1996, sizeof(struct shared_memory), IPC_CREAT | 0666);
+    struct shared_memory *sharedMemory;
+    int const shm_id = shmget(IPC_PRIVATE, sizeof(struct shared_memory), IPC_CREAT | 0666);
     if (shm_id == -1)
     {
         perror("Error with shmget");
         exit(EXIT_FAILURE);
     }
-    bla = shmat(shm_id, (void *)0, 0);
+    bla = shmat(shm_id, NULL, 0);
     sharedMemory = (struct shared_memory *)bla;
+    sharedMemory->requestedLine = 0;
+    // sharedMemory->foundLine = malloc(sizeof(FSIZE));
 
     // Initialize semaphores
-    sem_t *semClientRead, *semClientWrite, *semServer;
-    semServer = sem_open("/sem_server", O_CREAT, 0660, 0);           // LOCKED
-    semClientRead = sem_open("/sem_ClientRead", O_CREAT, 0660, 0);   // LOCKED
-    semClientWrite = sem_open("/sem_ClientWrite", O_CREAT, 0660, 1); // UNLOCKED
+    sem_t *semClientWrite, *semServer;
+    semServer = sem_open("/sem_server", O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    sem_t *semClientRead;
+    semClientRead = sem_open("/sem_client_read", O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    semClientWrite = sem_open("/sem_client_write", O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 1);
 
-    sem_init(semServer, 1, 0);      // LOCKED
-    sem_init(semClientRead, 1, 0);  // LOCKED
-    sem_init(semClientWrite, 1, 1); // UNLOCKED
+    sem_init(semClientWrite, 1, 1); // Unlocked
+    sem_init(semServer, 1, 0);      // Locked
+    sem_init(semClientRead, 1, 0);  // Locked
 
     // Open File and find how many lines
     fptr = fopen(fname, "r");
@@ -72,18 +77,20 @@ int main(int argc, char *argv[])
     }
     else
     {
-        int lines = countLines(fptr);
-        sharedMemory->numberOfLines = malloc(sizeof(int));
-        sharedMemory->numberOfLines = &lines;
+        numLines = countLines(fptr);
     }
     fclose(fptr);
 
-    sharedMemory->foundLine = malloc(sizeof(FSIZE * (*(int *)sharedMemory->numberOfLines)));
-    sharedMemory->requestedLine = malloc(sizeof(int));
-    *(int *)sharedMemory->requestedLine = 0;
+    char argv1[100], argv2[100], argv3[100], argv4[100], argv5[100];
+    sprintf(argv1, "%d", shm_id);      // argvv[1]
+    sprintf(argv2, "%d", numChildren); // argvv[2]
+    sprintf(argv3, "%d", numActions);  // argvv[3]
+    sprintf(argv4, "%d", numLines);    // argvv[4]
+    sprintf(argv5, "%s", fname);       // argvv[5]
 
-    char str[100];
-    sprintf(str, "%d", shm_id);
+    sem_close(semClientWrite);
+    sem_close(semServer);
+    sem_close(semClientRead);
 
     // Create children processes
     int i;
@@ -102,16 +109,14 @@ int main(int argc, char *argv[])
             break;
         }
     }
-
     if (pid[i] == 0)
     {
-        fflush(stdout);
-        execlp("./client", "./client", str, NULL);
+        execlp("./client", "./client", argv1, argv3, argv4, NULL);
     }
     else
     {
         // Parent process waits requests one at a time and responds
-        execlp("./server", "./server", str, NULL);
+        execlp("./server", "./server", argv1, argv2, argv3, argv4, argv5, NULL);
     }
 
     // Wait for everyone to finish
@@ -119,15 +124,12 @@ int main(int argc, char *argv[])
         ;
 
     // Free and unlink semaphores
-    sem_close(semClientRead);
-    sem_close(semClientWrite);
-    sem_close(semServer);
-    sem_unlink("ClientRead");
-    sem_unlink("ClientWrite");
-    sem_unlink("Server");
+
+    sem_unlink("/sem_client_read");
+    sem_unlink("/sem_client_write");
+    sem_unlink("/sem_server");
 
     // Detach and free memory
-    free(sharedMemory->foundLine);
     shmdt(sharedMemory);
     shmctl(shm_id, IPC_RMID, NULL);
     printf("Bla\n");

@@ -1,6 +1,6 @@
 CC=gcc
 
-CFLAGS= -c -Wall
+CFLAGS= -c -Wall -ggdb
 
 output: main.o client.o server.o
 	$(CC) -pthread main.o -o main
@@ -25,7 +25,7 @@ run:main.o  client.o server.o
 	$(CC) -pthread main.o -o main
 	$(CC) -pthread client.o -o client
 	$(CC) -pthread server.o -o server
-	./main
+	./main sample.txt 2 3
 
 gdb:main.o
 	gdb ./main
