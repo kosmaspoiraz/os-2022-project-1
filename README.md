@@ -16,4 +16,6 @@ Start over with: make clean
 
 There is a "sample.txt" file, which I used for debugging
 
+Github public repo: https://github.com/kosmaspoiraz/os-2022-project-1
+
 
