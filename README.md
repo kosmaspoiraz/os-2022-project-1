@@ -1,7 +1,21 @@
+
    ****Department of Informatics and Telecommunication
 University of Athens****
 
 # **Operational Systems (K22) / Winter Semester 2021-2022 Project 1**
+
+## Personal Info
+
+ - **NAME**: Kosmas Poirazoglou
+ - **UNI_ID**: sdi1400163
+ - **UNI_EMAIL**: [sdi1400163@di.uoa.gr](mailto:sdi1400163@di.uoa.gr)
+ - **PERSONAL_EMAIL**:[kosmas_poiraz@yahoo.com](mailto:kosmas_poiraz@yahoo.com)
+ - **LINKEDIN**: [@kosmaspoirazoglou](https://www.linkedin.com/in/kosmas-poirazoglou/)
+ - **GITHUB**:[@kosmaspoiraz](https://github.com/kosmaspoiraz)
+
+## What is it about?
+[mega link for .doc](https://mega.nz/file/wnA1yaKI#0VqYOwYXC1Vj9hfShOscai5ye0mxv1sX9__3oVwAm5k)
+
 ## Instructions
 Compile:
 ```console
@@ -102,5 +116,4 @@ Semaphores' initial values:
 
 ----
 **Github public repo: [https://github.com/kosmaspoiraz/os-2022-project-1](https://github.com/kosmaspoiraz/os-2022-project-1)**
-
 &copy;[Kosmas Poirazoglou](https://www.linkedin.com/in/kosmas-poirazoglou/)
