@@ -61,9 +61,8 @@ int main(int argc, char **argv)
         findLine(&sharedMemory->requestedLine, &numberOfLines, sharedMemory, fname);
         i++;
 
-        // Exiting Critical Section
         fflush(stdout);
-
+        // Exiting Critical Section 2
         if (sem_post(semClientRead) < 0)
         {
             perror("Failed to post semClientRead");

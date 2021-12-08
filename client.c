@@ -60,7 +60,6 @@ int main(int argc, char **argv)
         printf("Client (%d) in Action (%d) writing to memory: %d...\n", getpid(), actions, sharedMemory->requestedLine);
         fflush(stdout);
 
-        // Exiting Critical Section 1
         if (sem_post(semServer) < 0)
         {
             perror("Failed to post semServer");
@@ -78,7 +77,7 @@ int main(int argc, char **argv)
                sharedMemory->requestedLine, sharedMemory->foundLine);
         fflush(stdout);
 
-        // Exiting Critical Section 2
+        // Exiting Critical Section 1
         if (sem_post(semClientWrite) < 0)
         {
             perror("Failed to post semClientWrite");
