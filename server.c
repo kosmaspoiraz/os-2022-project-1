@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     sharedMemory = (struct shared_memory *)bla;
 
     // Open semaphores
-    sem_t *semServer, *semClientRead;
+    sem_t *semServer, *semClientRead, *semClientWrite;
 
     semServer = sem_open("/sem_server", O_RDWR);
     if (semServer == SEM_FAILED)
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semClienRead) < 0)
+    if (sem_close(semClientRead) < 0)
     {
         perror("Failed to close semClientRead");
         exit(EXIT_FAILURE);

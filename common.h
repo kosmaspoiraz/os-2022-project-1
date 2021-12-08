@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <time.h>
 
 #define FSIZE 1024
 #define SEM_PERMS O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP

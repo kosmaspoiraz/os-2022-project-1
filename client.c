@@ -37,6 +37,13 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    semClientWrite = sem_open("/sem_client_write", O_RDWR);
+    if (semClientWrite == SEM_FAILED)
+    {
+        perror("Failed to open semClientWrite");
+        exit(EXIT_FAILURE);
+    }
+
     srand(getpid());
     for (int actions = 0; actions < numActions; actions++)
     {
@@ -91,7 +98,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semClienRead) < 0)
+    if (sem_close(semClientRead) < 0)
     {
         perror("Failed to close semClientRead");
         exit(EXIT_FAILURE);

@@ -101,7 +101,7 @@ int main(int argvc, char *argvv[])
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semClienRead) < 0)
+    if (sem_close(semClientRead) < 0)
     {
         perror("Failed to close semClientRead");
         exit(EXIT_FAILURE);
