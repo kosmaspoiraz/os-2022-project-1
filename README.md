@@ -102,4 +102,5 @@ Semaphores' initial values:
 
 ----
 **Github public repo: [https://github.com/kosmaspoiraz/os-2022-project-1](https://github.com/kosmaspoiraz/os-2022-project-1)**
+
 &copy;[Kosmas Poirazoglou](https://www.linkedin.com/in/kosmas-poirazoglou/)
