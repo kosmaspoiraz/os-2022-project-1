@@ -2,7 +2,7 @@
 
 int main(int argc, char **argv)
 {
-    printf("Server is running...\n");
+    printf("Parent is running...\n");
 
     int shm_id, numChildren, numActions, numberOfLines;
     char *fname;
@@ -24,26 +24,26 @@ int main(int argc, char **argv)
     sharedMemory = (struct shared_memory *)bla;
 
     // Open semaphores
-    sem_t *semServer, *semClientRead, *semClientWrite;
+    sem_t *semParent, *semChildRead, *semChildWrite;
 
-    semServer = sem_open("/sem_server", O_RDWR);
-    if (semServer == SEM_FAILED)
+    semParent = sem_open("/sem_parent", O_RDWR);
+    if (semParent == SEM_FAILED)
     {
-        perror("Failed to open semServer");
+        perror("Failed to open semParent");
         exit(EXIT_FAILURE);
     }
 
-    semClientRead = sem_open("/sem_client_read", O_RDWR);
-    if (semClientRead == SEM_FAILED)
+    semChildRead = sem_open("/sem_child_read", O_RDWR);
+    if (semChildRead == SEM_FAILED)
     {
-        perror("Failed to open semClientRead");
+        perror("Failed to open semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    semClientWrite = sem_open("/sem_client_write", O_RDWR);
-    if (semClientWrite == SEM_FAILED)
+    semChildWrite = sem_open("/sem_child_write", O_RDWR);
+    if (semChildWrite == SEM_FAILED)
     {
-        perror("Failed to open semClientWrite");
+        perror("Failed to open semChildWrite");
         exit(EXIT_FAILURE);
     }
 
@@ -51,21 +51,21 @@ int main(int argc, char **argv)
     while (i < numChildren * numActions)
     {
         // Entering Critical Section
-        if (sem_wait(semServer) < 0)
+        if (sem_wait(semParent) < 0)
         {
-            perror("Failed to wait semServer");
+            perror("Failed to wait semParent");
             exit(EXIT_FAILURE);
         }
 
-        printf("Server read from memory: %d\n", sharedMemory->requestedLine);
+        printf("Parent read from memory: %d\n", sharedMemory->requestedLine);
         findLine(&sharedMemory->requestedLine, &numberOfLines, sharedMemory, fname);
         i++;
 
         fflush(stdout);
         // Exiting Critical Section 2
-        if (sem_post(semClientRead) < 0)
+        if (sem_post(semChildRead) < 0)
         {
-            perror("Failed to post semClientRead");
+            perror("Failed to post semChildRead");
             exit(EXIT_FAILURE);
         }
     }
@@ -75,40 +75,40 @@ int main(int argc, char **argv)
         ;
 
     // Close semaphores
-    if (sem_close(semClientWrite) < 0)
+    if (sem_close(semChildWrite) < 0)
     {
-        perror("Failed to close semClientWrite");
+        perror("Failed to close semChildWrite");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semClientRead) < 0)
+    if (sem_close(semChildRead) < 0)
     {
-        perror("Failed to close semClientRead");
+        perror("Failed to close semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semServer) < 0)
+    if (sem_close(semParent) < 0)
     {
-        perror("Failed to close semServer");
+        perror("Failed to close semParent");
         exit(EXIT_FAILURE);
     }
 
     // Unlink semaphores
-    if (sem_unlink("/sem_client_read") < 0)
+    if (sem_unlink("/sem_child_read") < 0)
     {
-        perror("Failed to unlink semClientRead");
+        perror("Failed to unlink semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_unlink("/sem_client_write") < 0)
+    if (sem_unlink("/sem_child_write") < 0)
     {
-        perror("Failed to unlink semClientWrite");
+        perror("Failed to unlink semChildWrite");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_unlink("/sem_server") < 0)
+    if (sem_unlink("/sem_parent") < 0)
     {
-        perror("Failed to unlink semServer");
+        perror("Failed to unlink semParent");
         exit(EXIT_FAILURE);
     }
 

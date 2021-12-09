@@ -34,43 +34,43 @@ int main(int argvc, char *argvv[])
     sharedMemory->requestedLine = 0;
 
     // Create semaphores
-    sem_t *semClientWrite, *semServer, *semClientRead;
+    sem_t *semChildWrite, *semParent, *semChildRead;
 
-    semServer = sem_open("/sem_server", SEM_PERMS, 0);
-    if (semServer == SEM_FAILED)
+    semParent = sem_open("/sem_parent", SEM_PERMS, 0);
+    if (semParent == SEM_FAILED)
     {
-        perror("Failed to open semServer");
+        perror("Failed to open semParent");
         exit(EXIT_FAILURE);
     }
 
-    semClientRead = sem_open("/sem_client_read", SEM_PERMS, 0);
-    if (semClientRead == SEM_FAILED)
+    semChildRead = sem_open("/sem_child_read", SEM_PERMS, 0);
+    if (semChildRead == SEM_FAILED)
     {
-        perror("Failed to open semClientRead");
+        perror("Failed to open semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    semClientWrite = sem_open("/sem_client_write", SEM_PERMS, 1);
-    if (semClientWrite == SEM_FAILED)
+    semChildWrite = sem_open("/sem_child_write", SEM_PERMS, 1);
+    if (semChildWrite == SEM_FAILED)
     {
-        perror("Failed to open semClientWrite");
+        perror("Failed to open semChildWrite");
         exit(EXIT_FAILURE);
     }
 
     // Initialize semaphores
-    if (sem_init(semClientWrite, 1, 1) != 0) // Unlocked
+    if (sem_init(semChildWrite, 1, 1) != 0) // Unlocked
     {
-        perror("Failed to initialize semClientWrite");
+        perror("Failed to initialize semChildWrite");
         exit(EXIT_FAILURE);
     }
-    if (sem_init(semServer, 1, 0) != 0) // Locked
+    if (sem_init(semParent, 1, 0) != 0) // Locked
     {
-        perror("Failed to initialize semServer");
+        perror("Failed to initialize semParent");
         exit(EXIT_FAILURE);
     }
-    if (sem_init(semClientRead, 1, 0)) // Locked
+    if (sem_init(semChildRead, 1, 0)) // Locked
     {
-        perror("Failed to initialize semClientRead");
+        perror("Failed to initialize semChildRead");
         exit(EXIT_FAILURE);
     }
 
@@ -95,21 +95,21 @@ int main(int argvc, char *argvv[])
     sprintf(argv5, "%s", fname);       // argvv[5]
 
     // Close sems as we won't be using them here
-    if (sem_close(semClientWrite) < 0)
+    if (sem_close(semChildWrite) < 0)
     {
-        perror("Failed to close semClientWrite");
+        perror("Failed to close semChildWrite");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semClientRead) < 0)
+    if (sem_close(semChildRead) < 0)
     {
-        perror("Failed to close semClientRead");
+        perror("Failed to close semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semServer) < 0)
+    if (sem_close(semParent) < 0)
     {
-        perror("Failed to close semServer");
+        perror("Failed to close semParent");
         exit(EXIT_FAILURE);
     }
 
@@ -132,12 +132,12 @@ int main(int argvc, char *argvv[])
     }
     if (pid[i] == 0)
     {
-        execlp("./client", "./client", argv1, argv3, argv4, NULL);
+        execlp("./child", "./child", argv1, argv3, argv4, NULL);
     }
     else
     {
         // Parent process
-        execlp("./server", "./server", argv1, argv2, argv3, argv4, argv5, NULL);
+        execlp("./parent", "./parent", argv1, argv2, argv3, argv4, argv5, NULL);
     }
 
     return 0;

@@ -28,7 +28,7 @@ void findLine(int *lineNum, int *numLines, struct shared_memory *sharedMemory, c
         line[strlen(line) - 1] = '\0';
         if (count == *lineNum)
         {
-            printf("Server returned line number %d \n", sharedMemory->requestedLine);
+            printf("Parent returned line number %d \n", sharedMemory->requestedLine);
             // sharedMemory->foundLine = line;
             strcpy(sharedMemory->foundLine, line);
             fclose(file);

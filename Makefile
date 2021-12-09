@@ -2,29 +2,29 @@ CC=gcc
 
 CFLAGS= -c -Wall -ggdb
 
-output: main.o client.o server.o
+output: main.o child.o parent.o
 	$(CC) -pthread main.o common.c -o main
-	$(CC) -pthread client.o common.c -o client
-	$(CC) -pthread server.o common.c -o server
+	$(CC) -pthread child.o common.c -o child
+	$(CC) -pthread parent.o common.c -o parent
 
 main.o: main.c
 	$(CC) $(CFLAGS) main.c common.c
 
-client.o: client.c
-	$(CC) $(CFLAGS) client.c common.c
+child.o: child.c
+	$(CC) $(CFLAGS) child.c common.c
 
-server.o: server.c
-	$(CC) $(CFLAGS) server.c common.c
+parent.o: parent.c
+	$(CC) $(CFLAGS) parent.c common.c
 
 clean:	
-	rm *.o main client server 
+	rm *.o main child parent 
 	clear
 
-run:main.o  client.o server.o
+run:main.o  child.o parent.o
 	clear
 	$(CC) -pthread main.o common.c -o main
-	$(CC) -pthread client.o common.c -o client
-	$(CC) -pthread server.o common.c -o server
+	$(CC) -pthread child.o common.c -o child
+	$(CC) -pthread parent.o common.c -o parent
 	./main sample.txt 2 3
 
 gdb:main.o

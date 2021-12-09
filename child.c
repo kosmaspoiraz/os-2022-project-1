@@ -2,7 +2,7 @@
 
 int main(int argc, char **argv)
 {
-    printf("Client (%d) is running...\n", getpid());
+    printf("Child (%d) is running...\n", getpid());
 
     int shm_id, numActions, numberOfLines;
     sscanf(argv[1], "%d", &shm_id);
@@ -21,26 +21,26 @@ int main(int argc, char **argv)
     sharedMemory = (struct shared_memory *)bla;
 
     // Open semaphores
-    sem_t *semServer, *semClientWrite, *semClientRead;
+    sem_t *semParent, *semChildWrite, *semChildRead;
 
-    semServer = sem_open("/sem_server", O_RDWR);
-    if (semServer == SEM_FAILED)
+    semParent = sem_open("/sem_parent", O_RDWR);
+    if (semParent == SEM_FAILED)
     {
-        perror("Failed to open semServer");
+        perror("Failed to open semParent");
         exit(EXIT_FAILURE);
     }
 
-    semClientRead = sem_open("/sem_client_read", O_RDWR);
-    if (semClientRead == SEM_FAILED)
+    semChildRead = sem_open("/sem_child_read", O_RDWR);
+    if (semChildRead == SEM_FAILED)
     {
-        perror("Failed to open semClientRead");
+        perror("Failed to open semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    semClientWrite = sem_open("/sem_client_write", O_RDWR);
-    if (semClientWrite == SEM_FAILED)
+    semChildWrite = sem_open("/sem_child_write", O_RDWR);
+    if (semChildWrite == SEM_FAILED)
     {
-        perror("Failed to open semClientWrite");
+        perror("Failed to open semChildWrite");
         exit(EXIT_FAILURE);
     }
 
@@ -50,38 +50,38 @@ int main(int argc, char **argv)
     {
         clock_t begin = clock();
         // Entering Critical Section 1
-        if (sem_wait(semClientWrite) < 0)
+        if (sem_wait(semChildWrite) < 0)
         {
-            perror("Failed to wait semClientWrite");
+            perror("Failed to wait semChildWrite");
             exit(EXIT_FAILURE);
         }
 
-        // Request line from server
+        // Request line from Parent
         sharedMemory->requestedLine = rand() % numberOfLines + 1;
-        printf("Client (%d) in Action (%d) writing to memory: %d...\n", getpid(), actions, sharedMemory->requestedLine);
+        printf("Child (%d) in Action (%d) writing to memory: %d...\n", getpid(), actions, sharedMemory->requestedLine);
         fflush(stdout);
 
-        if (sem_post(semServer) < 0)
+        if (sem_post(semParent) < 0)
         {
-            perror("Failed to post semServer");
+            perror("Failed to post semParent");
             exit(EXIT_FAILURE);
         }
 
         // Entering Critical Section 2
-        if (sem_wait(semClientRead) < 0)
+        if (sem_wait(semChildRead) < 0)
         {
-            perror("Failed to wait semClientRead");
+            perror("Failed to wait semChildRead");
             exit(EXIT_FAILURE);
         }
 
-        printf("Client (%d) in Action (%d) printing line: %d \n%s\n", getpid(), actions,
+        printf("Child (%d) in Action (%d) printing line: %d \n%s\n", getpid(), actions,
                sharedMemory->requestedLine, sharedMemory->foundLine);
         fflush(stdout);
 
         // Exiting Critical Section 1
-        if (sem_post(semClientWrite) < 0)
+        if (sem_post(semChildWrite) < 0)
         {
-            perror("Failed to post semClientWrite");
+            perror("Failed to post semChildWrite");
             exit(EXIT_FAILURE);
         }
 
@@ -97,21 +97,21 @@ int main(int argc, char **argv)
         avgTime += times[i];
 
     // Close semaphores
-    if (sem_close(semClientWrite) < 0)
+    if (sem_close(semChildWrite) < 0)
     {
-        perror("Failed to close semClientWrite");
+        perror("Failed to close semChildWrite");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semClientRead) < 0)
+    if (sem_close(semChildRead) < 0)
     {
-        perror("Failed to close semClientRead");
+        perror("Failed to close semChildRead");
         exit(EXIT_FAILURE);
     }
 
-    if (sem_close(semServer) < 0)
+    if (sem_close(semParent) < 0)
     {
-        perror("Failed to close semServer");
+        perror("Failed to close semParent");
         exit(EXIT_FAILURE);
     }
 
@@ -122,9 +122,9 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    printf("\n|------------------------------------------------------------------------|\n");
-    printf("|Client (%d) terminated with average transaction time: %f seconds|\n", getpid(), avgTime / (double)numActions);
-    printf("|------------------------------------------------------------------------|\n\n");
+    printf("\n|-----------------------------------------------------------------------|\n");
+    printf("|Child (%d) terminated with average transaction time: %f seconds|\n", getpid(), avgTime / (double)numActions);
+    printf("|-----------------------------------------------------------------------|\n\n");
 
     return 0;
 }
