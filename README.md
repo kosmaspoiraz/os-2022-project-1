@@ -60,7 +60,7 @@ Shared memory is represented by a struct
 struct  shared_memory
 {
 char  foundLine[FSIZE]; // Array containing requested line in each request
-int  requestedLine;		// Int containing requested line number in each request
+int  requestedLine;	// Int containing requested line number in each request
 };
 ```
 **Shared Memory's Actions**

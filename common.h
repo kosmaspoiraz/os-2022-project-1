@@ -22,8 +22,8 @@
 // Shared memory struct
 struct shared_memory
 {
-    char foundLine[FSIZE];
-    int requestedLine;
+    char foundLine[FSIZE]; // Array containing requested line in each request
+    int requestedLine;     // Int containing requested line number in each request
 };
 
 // Function to count how many lines in File
