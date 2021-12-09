@@ -45,6 +45,7 @@ int main(int argc, char **argv)
     }
 
     srand(getpid());
+    double times[numActions];
     for (int actions = 0; actions < numActions; actions++)
     {
         clock_t begin = clock();
@@ -87,8 +88,13 @@ int main(int argc, char **argv)
         // Print transaction time
         clock_t end = clock();
         double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        times[actions] = time_spent;
         printf("Transaction lasted %f seconds\n\n", time_spent);
     }
+
+    double avgTime = 0;
+    for (int i = 0; i < numActions; i++)
+        avgTime += times[i];
 
     // Close semaphores
     if (sem_close(semClientWrite) < 0)
@@ -115,6 +121,10 @@ int main(int argc, char **argv)
         perror("Failed with shmdt");
         exit(EXIT_FAILURE);
     }
+
+    printf("\n|------------------------------------------------------------------------|\n");
+    printf("|Client (%d) terminated with average transaction time: %f seconds|\n", getpid(), avgTime / (double)numActions);
+    printf("|------------------------------------------------------------------------|\n\n");
 
     return 0;
 }
